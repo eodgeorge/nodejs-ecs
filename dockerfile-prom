@@ -1,0 +1,4 @@
+FROM prom/prometheus
+COPY prometheus.yml /etc/prometheus/prometheus.yml
+ENTRYPOINT ["/bin/prometheus"]
+CMD ["--config.file=/etc/prometheus/prometheus.yml"]
