@@ -47,6 +47,9 @@ variable "name" {
   default = "ecs-sjtgoose"
 }
 
+variable "aws_account_id" {
+  default = "385771716406"
+}
 
 
 # environment = [

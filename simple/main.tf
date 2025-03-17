@@ -32,14 +32,14 @@ resource "aws_s3_object" "fluentbit-conf" {
 }
 
 # NETWORK/ACCESS/GATEWAY/DB/ENCRYPTION
-data "aws_s3_bucket" "sjteod-bucket" {
-  bucket = "sjteod-bucket"
+data "aws_s3_bucket" "sjteod-buckett" {
+  bucket = "sjteod-buckett"
   lifecycle {
   }
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "tf_state_lifecycle" {
-  bucket = data.aws_s3_bucket.sjteod-bucket.id
+  bucket = data.aws_s3_bucket.sjteod-buckett.id
   rule {
     id     = "PreventPermanentDeletion"
     status = "Enabled"
@@ -60,12 +60,12 @@ terraform {
       version = "5.83.1"
     }
   }
-#   backend "s3" { #### policy, versioning, lifecyccle, locking(s3/dynamodb)
-#     bucket  = "sjteod-bucket"
-#     key     = "ecs/terraform.tfstate"
-#     region  = "eu-west-2"
-#     encrypt = false
-#   }
+  backend "s3" { #### policy, versioning, lifecyccle, locking(s3/dynamodb)
+    bucket  = "sjteod-buckett"
+    key     = "ecs/terraform.tfstate"
+    region  = "eu-west-2"
+    encrypt = false
+  }
 }
 
 provider "aws" {
@@ -123,29 +123,29 @@ resource "aws_subnet" "pri_subnet1" {
   }
 }
 
-# resource "aws_db_subnet_group" "aurora_postgresql" {
-#   name = "aurora-postgresql-subnet-group"
-#   subnet_ids = [
-#     aws_subnet.pri_subnet.id,
-#     aws_subnet.pri_subnet1.id
-#   ]
-
-#   tags = {
-#     Name = "aurora_postgresql"
-#   }
-# }
-
 resource "aws_db_subnet_group" "aurora_postgresql" {
   name = "aurora-postgresql-subnet-group"
   subnet_ids = [
-    aws_subnet.pub_subnet.id,
-    aws_subnet.pub_subnet1.id
+    aws_subnet.pri_subnet.id,
+    aws_subnet.pri_subnet1.id
   ]
 
   tags = {
     Name = "aurora_postgresql"
   }
 }
+
+# resource "aws_db_subnet_group" "aurora_postgresql" {
+#   name = "aurora-postgresql-subnet-group"
+#   subnet_ids = [
+#     aws_subnet.pub_subnet.id,
+#     aws_subnet.pub_subnet1.id
+#   ]
+
+#   tags = {
+#     Name = "aurora_postgresql"
+#   }
+# }
 
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.vpcgoose.id
@@ -267,16 +267,9 @@ resource "aws_security_group" "ecs_tasks_sg" {
     from_port   = 3000
     to_port     = 3000
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    security_groups = [aws_security_group.lb_sg.id] 
+    # cidr_blocks = ["0.0.0.0/0"]
     description = "ALB ecs app access"
-  }
-
-  ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "PostgreSQL access for app only"
   }
 
   egress {
@@ -310,13 +303,6 @@ resource "aws_security_group" "lb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -338,7 +324,8 @@ resource "aws_security_group" "db_sg" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    security_groups = [aws_security_group.ecs_tasks_sg.id]
+    # cidr_blocks = ["0.0.0.0/0"]
     description = "PostgreSQL access for app only"
   }
 
@@ -549,6 +536,7 @@ data "aws_iam_policy_document" "ecs_task_policy" {
       "ecr:GetAuthorizationToken",
       "ecr:BatchCheckLayerAvailability",
       "ecr:GetDownloadUrlForLayer",
+      "ecr:GetRepositoryPolicy",
       "ecr:BatchGetImage",
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
@@ -704,10 +692,10 @@ resource "aws_iam_policy" "secret_policy" {
   policy = data.aws_iam_policy_document.secret_policy.json
 }
 
-# resource "aws_iam_role_policy_attachment" "exe-kms-secret-rds-attach" {
-#   role       = aws_iam_role.exe_role_containeragentdocker_policy.name
-#   policy_arn = aws_iam_policy.secret-policy.arn
-# }
+resource "aws_iam_role_policy_attachment" "exe-kms-secret-rds-attach" {
+  role       = aws_iam_role.exe_role_containeragentdocker_policy.name
+  policy_arn = aws_iam_policy.secret_policy.arn
+}
 
 resource "aws_iam_role_policy_attachment" "task-kms_secret_rds_attach" {
   role       = aws_iam_role.ecs_task_assume_role.name
@@ -730,8 +718,8 @@ data "aws_iam_policy_document" "s3" {
       "kms:Decrypt"
     ]
     resources = [
-      "arn:aws:s3:::sjteod-bucket",
-      "arn:aws:s3:::sjteod-bucket/*",
+      "arn:aws:s3:::sjteod-buckett",
+      "arn:aws:s3:::sjteod-buckett/*",
       "${aws_s3_bucket.srseod-bucket.arn}/*"
     ]
   }
@@ -744,8 +732,8 @@ data "aws_iam_policy_document" "s3" {
     ]
 
     resources = [
-      "arn:aws:s3:::sjteod-bucket",
-      "arn:aws:s3:::sjteod-bucket/*",
+      "arn:aws:s3:::sjteod-buckett",
+      "arn:aws:s3:::sjteod-buckett/*",
     ]
   }
 }
@@ -924,8 +912,8 @@ resource "aws_ecs_task_definition" "task_def" {
   requires_compatibilities = ["FARGATE"]
   execution_role_arn       = aws_iam_role.exe_role_containeragentdocker_policy.arn
   task_role_arn            = aws_iam_role.ecs_task_assume_role.arn
-  cpu                      = 2048
-  memory                   = 4096
+  cpu                      = 1024
+  memory                   = 2048
   network_mode             = "awsvpc"
   container_definitions = jsonencode([
     {
@@ -961,35 +949,39 @@ resource "aws_ecs_task_definition" "task_def" {
         }
       ]
     },
-    {
-      name      = "fluent_bit"
-      image     = "fluent/fluent-bit"
-      cpu       = 512
-      memory    = 1024
-      essential = true
-      command   = ["/fluent-bit/bin/fluent-bit"]
-      args      = ["-c", "/fluent-bit/etc/fluent-bit.conf", "-v"]
-      mountPoints = [
-        {
-          sourceVolume  = "config-volume",
-          containerPath = "/fluent-bit/etc"
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.MyAppLogs.name
-          awslogs-region        = local.region
-          awslogs-stream-prefix = "ecs-fluentbit"
-        }
-      }
-      dependsOn = [
-        {
-          containerName = "init-container",
-          condition     = "SUCCESS"
-        }
-      ]
-    },
+#     {
+#       name      = "fluent_bit"
+#       image     = "fluent/fluent-bit:latest"
+#       cpu       = 128
+#       memory    = 256
+#       essential = true
+#       command   = ["/fluent-bit/bin/fluent-bit"]
+#       args      = ["-c", "/fluent-bit/etc/fluent-bit.conf", "-v"]
+#        mountPoints = [
+#         {
+#           "sourceVolume": "app-logs",
+#           "containerPath": "/var/log"
+#         },
+#         {
+#           sourceVolume  = "config-volume",
+#           containerPath = "/fluent-bit/etc"
+#         }
+#       ]
+#       logConfiguration = {
+#         logDriver = "awslogs"
+#         options = {
+#           awslogs-group         = aws_cloudwatch_log_group.MyAppLogs.name
+#           awslogs-region        = local.region
+#           awslogs-stream-prefix = "ecs-fluentbit"
+#         }
+#       }
+#       dependsOn = [
+#         {
+#           containerName = "init-container",
+#           condition     = "SUCCESS"
+#         }
+#       ]
+#     },
     {
       name      = "init-container"
       image     = "amazonlinux"
@@ -1037,7 +1029,7 @@ resource "aws_ecs_service" "service" {
   network_configuration {
     security_groups = [aws_security_group.ecs_tasks_sg.id] #aws_security_group.lb_sg.id
     # subnets          = local.pri-subnets
-    subnets          = [aws_subnet.pub_subnet.id, aws_subnet.pub_subnet1.id]
+    subnets          = [aws_subnet.pri_subnet.id, aws_subnet.pri_subnet1.id]
     assign_public_ip = false
   }
 
