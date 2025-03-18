@@ -39,3 +39,5 @@ dist
 
 .vscode/*
 !.vscode/extensions.json
+
+.env

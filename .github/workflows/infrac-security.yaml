@@ -1,0 +1,79 @@
+name: "Infra Security Scan"
+
+on:
+  schedule:
+    - cron: '10 1 * * *' 
+  pull_request:
+    paths:
+      - 'tf-infra/**' 
+
+jobs:
+  terraform-security:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: '1.5.6'
+
+    - name: Cache Plugins/Modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.terraform.d/plugin-cache
+          .terraform
+        key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+        restore-keys: |
+          ${{ runner.os }}-terraform-
+
+    - name: Run TFLint
+      run: |
+        cd tf-infra
+        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+        tflint --init 
+        tflint --config .tflint.hcl | tee tflint-report.txt
+
+    - name: Run Static Analysis
+      uses: aquasecurity/tfsec-action@v1.0.0
+      with:
+        working_directory: tf-infra
+        format: sarif
+        output_file: tfsec-report.sarif
+
+    - name: Run Trivy Security Scan for Terraform
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: "config"
+        scan-ref: "./tf-infra"
+        format: "sarif"
+        output: "trivy-results.sarif"
+
+    - name: Upload tfsec SecReport
+      uses: actions/upload-artifact@v3
+      with:
+        name: tfsec-security-report
+        path: tfsec-report.sarif
+
+    - name: Upload Trivy ScanReport
+      uses: actions/upload-artifact@v3
+      with:
+        name: trivy-security-report
+        path: trivy-results.sarif
+
+    - name: Upload TFLintReport
+      uses: actions/upload-artifact@v3
+      with:
+        name: tflint-report
+        path: tf-infra/tflint-report.txt
+
+
+
+

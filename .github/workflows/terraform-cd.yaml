@@ -1,0 +1,71 @@
+name: "Terraform Deployment"
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'tf-infra/**'
+  workflow_dispatch:
+  workflow_run:
+    workflows: [ "Infra Security Scan" ]  
+    types:
+      - completed
+
+jobs:
+  await-Pipeline-security:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+    - name: Waiting for security scan result
+      run: echo "Waiting for Infra Security Scan to complete successfully..."
+
+  terraform-deploy:
+    needs: await-Pipeline-security 
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: '1.5.6'
+
+    - name: Cache Plugins/Modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.terraform.d/plugin-cache
+          .terraform
+        key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+        restore-keys: |
+          ${{ runner.os }}-terraform-
+
+    - name: Terraform IVP
+      run: |
+        cd tf-infra
+        terraform init
+        terraform validate
+        terraform plan -out=tfplan
+        terraform show -json tfplan > plan_output.json         
+
+    - name: Terraform Apply
+      run: |
+        cd tf-infra
+        terraform apply -auto-approve tfplan
+        terraform output -json > terraform_output.json         
+
+    - name: Commit tf-files to PR
+      working-directory: tf-infra
+      run: |
+        git config --global user.name '${{ github.actor }}'
+        git config --global user.email '${{ github.actor}}@users.noreply.github.com'
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+        git add ./\*.tf
+        git commit -m "Add terraform resource files" && git push || { echo "Commit failed"; exit 1; }
