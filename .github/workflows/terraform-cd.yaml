@@ -17,12 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-    - name: Waiting for security scan result
-      run: echo "Waiting for Infra Security Scan to complete successfully..."
+    - name: await-Pipeline-security
+      run: echo "success..."
 
   terraform-deploy:
     needs: await-Pipeline-security 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, staging, production]   
+    environment: ${{ matrix.environment }} 
     permissions:
       actions: read
       contents: read
@@ -54,6 +58,12 @@ jobs:
         terraform validate
         terraform plan -out=tfplan
         terraform show -json tfplan > plan_output.json         
+
+    - name: Approval Staging&Prod
+      if: ${{ matrix.environment == 'staging' || matrix.environment == 'production' }}
+      uses: hmarr/auto-approve-action@v3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Terraform Apply
       run: |
