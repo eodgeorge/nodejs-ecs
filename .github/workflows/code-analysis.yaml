@@ -43,7 +43,9 @@ jobs:
         cache: 'npm'
 
     - name: Install dependencies
-      run: npm install
+      run: |
+        cd app-code && npm install
 
     - name: Run ESLint
-      run: npx eslint . --ext .js,.jsx,.ts,.tsx
+      run: |
+        cd app-code && npx eslint . --ext .js,.jsx,.ts,.tsx
