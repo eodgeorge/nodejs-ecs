@@ -17,3 +17,7 @@ output "db-name" {
 # output "env" {
 #   value = local.environment
 # }
+
+output "s3_url" {
+  value = aws_s3_bucket_website_configuration.srseod-bucket-web.website_endpoint
+}

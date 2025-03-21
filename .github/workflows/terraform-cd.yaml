@@ -36,6 +36,17 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Download IMAGE_TAG_artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: image_tag
+        path: ./artifact
+
+    - name: Set IMAGE_TAG for workflow
+      run: |
+        IMAGE_TAG=$(cat ./artifact/image_tag.txt)
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v2
       with:
@@ -54,6 +65,7 @@ jobs:
     - name: Terraform IVP
       run: |
         cd tf-infra
+        sed -i 's/{{TAGGED}}/${{ env.IMAGE_TAG }}/g'
         terraform init
         terraform validate
         terraform plan -out=tfplan

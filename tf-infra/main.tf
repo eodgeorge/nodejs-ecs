@@ -2,6 +2,19 @@ resource "aws_s3_bucket" "srseod-bucket" {
   bucket = "srseod-bucket"
 }
 
+resource "aws_s3_bucket_public_access_block" "srseod_pubaccess" {
+  bucket = aws_s3_bucket.srseod-bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+
+  depends_on = [ 
+  aws_s3_bucket.srseod-bucket
+  ] 
+}
+
 resource "aws_s3_bucket_website_configuration" "srseod-bucket-web" {
   bucket = aws_s3_bucket.srseod-bucket.id
 
@@ -21,6 +34,22 @@ resource "aws_s3_bucket_website_configuration" "srseod-bucket-web" {
       replace_key_prefix_with = "documents/"
     }
   }
+}
+
+resource "null_resource" "srseod_static" {
+  provisioner "local-exec" {
+    command = "aws s3 sync ../app-code/dist s3://${aws_s3_bucket.srseod-bucket.id}" 
+  }
+  depends_on = [ 
+    aws_s3_bucket.srseod-bucket
+   ]
+}
+
+resource "aws_s3_bucket_logging" "srseod_log" {
+  bucket = aws_s3_bucket.srseod-bucket.id
+
+  target_bucket = aws_s3_bucket.srseod-bucket.id
+  target_prefix = "log/"
 }
 
 resource "aws_s3_object" "fluentbit-conf" {
@@ -720,7 +749,12 @@ data "aws_iam_policy_document" "s3" {
     resources = [
       "arn:aws:s3:::sjteod-buckett",
       "arn:aws:s3:::sjteod-buckett/*",
-      "${aws_s3_bucket.srseod-bucket.arn}/*"
+      "${aws_s3_bucket.srseod-bucket.arn}/index.html",
+      "${aws_s3_bucket.srseod-bucket.arn}/error.html",
+      "${aws_s3_bucket.srseod-bucket.arn}/*.css",
+      "${aws_s3_bucket.srseod-bucket.arn}/*.js",
+      "${aws_s3_bucket.srseod-bucket.arn}/*.png",
+      "arn:aws:s3:::srseod-bucket/*.conf"    
     ]
   }
   statement {
@@ -729,11 +763,14 @@ data "aws_iam_policy_document" "s3" {
 
     actions = [
       "s3:DeleteObject",
+      "s3:GetObject"
     ]
 
-    resources = [
+    resources = [     
       "arn:aws:s3:::sjteod-buckett",
       "arn:aws:s3:::sjteod-buckett/*",
+      "arn:aws:s3:::srseod-bucket/*.log",
+      "arn:aws:s3:::srseod-bucket/*.json"
     ]
   }
 }
@@ -918,7 +955,7 @@ resource "aws_ecs_task_definition" "task_def" {
   container_definitions = jsonencode([
     {
       name   = "nodejs_image"
-      image  = "docker.io/eodgeorge/sjtnodejs:goosev1"
+      image  = "docker.io/eodgeorge/swsnodejs:TAGGED"
       cpu    = 512
       memory = 1024
       # repositoryCredentials = {
