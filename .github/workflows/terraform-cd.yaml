@@ -64,8 +64,9 @@ jobs:
 
     - name: Terraform IVP
       run: |
+        set -e
         cd tf-infra
-        sed -i 's/{{TAGGED}}/${{ env.IMAGE_TAG }}/g'
+        sed -i 's/{{TAGGED}}/${{ env.IMAGE_TAG }}/g' main.tf
         terraform init
         terraform validate
         terraform plan -out=tfplan

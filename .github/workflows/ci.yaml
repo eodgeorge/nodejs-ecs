@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
 
       - name: Install npm dependencies
         run:  npm install && npm run build
@@ -46,13 +47,14 @@ jobs:
 
       - name: Docker Image-buildTAg
         run:  |
-          echo "IMAGe_TAG=${IMAGE_TAG}-$(date +%Y%m%d%H%M%S)" > image_tag.txt 
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/swsnodejs:${{ IMAGe_TAG }} -f app-code/Dockerfile .
+          echo "IMAGE_TAG=${{ SHA_TAG }}-$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+          echo "{{ env.IMAGE_TAG }}" > image_tag.txt 
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/swsnodejs:${{ env.IMAGE_TAG }} -f app-code/Dockerfile .
 
       - name: Scan Image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ secrets.DOCKER_USERNAME }}/swsnodejs:${{ IMAGe_TAG }}'
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/swsnodejs:${{ env.IMAGE_TAG }}'
           format: 'table'
           exit-code: 1 
           severity: 'HIGH,CRITICAL'
@@ -65,9 +67,6 @@ jobs:
         with:
           name: image_tag
           path: image_tag.txt
-
-    outputs:
-      image_tag: ${{ steps.docker_image_build.outputs.image_tag }}
 
 
 
