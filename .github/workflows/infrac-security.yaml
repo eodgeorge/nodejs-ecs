@@ -57,19 +57,19 @@ jobs:
         output: "trivy-results.sarif"
 
     - name: Upload tfsec SecReport
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tfsec-security-report
         path: tfsec-report.sarif
 
     - name: Upload Trivy ScanReport
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: trivy-security-report
         path: trivy-results.sarif
 
     - name: Upload TFLintReport
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tflint-report
         path: tf-infra/tflint-report.txt
