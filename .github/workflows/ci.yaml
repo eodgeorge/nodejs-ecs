@@ -5,6 +5,7 @@ on:
     workflows: [ "Code-analysis" ] 
     types:
       - completed
+  workflow_dispatch:      
 
 jobs:
   build_docker:
