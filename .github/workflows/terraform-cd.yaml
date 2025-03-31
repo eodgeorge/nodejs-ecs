@@ -72,12 +72,6 @@ jobs:
         terraform plan -out=tfplan
         terraform show -json tfplan > plan_output.json         
 
-    - name: Approval Staging&Prod
-      if: ${{ matrix.environment == 'staging' || matrix.environment == 'production' }}
-      uses: hmarr/auto-approve-action@v3
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Terraform Apply
       run: |
         cd tf-infra
