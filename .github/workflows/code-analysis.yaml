@@ -45,7 +45,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd app-code && npm install
+        cd app-code && npm install && npm install eslint --save-dev
 
     - name: Run ESLint
       run: |
